@@ -7,3 +7,4 @@ edition = "2021"
 license = "MIT"
 
 [dependencies]
+serde = { version = "1", optional = true }
