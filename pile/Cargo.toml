@@ -1,0 +1,9 @@
+[package]
+name = "pile"
+version = "0.1.0"
+description = "A fast but limited collection for storing values of a single type."
+authors = ["Maximilian Köhl <mail@koehlma.de>"]
+edition = "2021"
+license = "MIT"
+
+[dependencies]
