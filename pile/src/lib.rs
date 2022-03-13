@@ -450,17 +450,6 @@ impl<T, K: Key> Pile<T, K> {
         }
     }
 
-    /// Returns an [`Iterator`] moving key-value pairs out of the pile.
-    pub fn into_iter(self) -> IntoIter<T, K> {
-        IntoIter {
-            chunks: self.inner.into_inner().chunks.into_iter(),
-            active: None,
-            chunk_idx: 0,
-            value_idx: 0,
-            _phantom_key: PhantomData,
-        }
-    }
-
     /// Grows the pile such that there is space for at least *additional* values.
     #[cold]
     fn grow(&self, additional: usize) {
@@ -567,7 +556,13 @@ impl<T, K: Key> IntoIterator for Pile<T, K> {
     type IntoIter = IntoIter<T, K>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.into_iter()
+        IntoIter {
+            chunks: self.inner.into_inner().chunks.into_iter(),
+            active: None,
+            chunk_idx: 0,
+            value_idx: 0,
+            _phantom_key: PhantomData,
+        }
     }
 }
 
