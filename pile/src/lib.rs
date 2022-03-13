@@ -358,6 +358,11 @@ impl<T, K: Key> Pile<T, K> {
         (active.start as usize) + active.storage.len()
     }
 
+    /// Checks whether the pile is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns a shared reference to the value stored for the given *key*.
     ///
     /// The complexity is *O(1)* if the *key* has been returned by this pile. It
