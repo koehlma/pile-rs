@@ -324,7 +324,7 @@ impl<T, K: Key> Pile<T, K> {
     /// Tries to push a *value* onto the pile *without* allocating more memory.
     ///
     ///
-    /// ## Error
+    /// # Errors
     ///
     /// Fails in case no space is available in the pile.
     pub fn try_push(&self, value: T) -> Result<(K, &T), T> {
