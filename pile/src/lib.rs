@@ -641,27 +641,22 @@ impl<T, K: Key> Iterator for IntoIter<T, K> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            match &mut self.active {
-                Some(chunk) => match chunk.next() {
-                    Some(value) => {
-                        let result = Some((
-                            K::from(DefaultKey::new(self.chunk_idx, self.value_idx)),
-                            value,
-                        ));
-                        self.value_idx += 1;
-                        break result;
-                    }
-                    None => {
-                        self.active = None;
-                        self.chunk_idx += 1;
-                    }
-                },
-                None => match self.chunks.next() {
-                    Some(chunk) => {
-                        self.active = Some(chunk.storage.into_iter());
-                    }
-                    None => break None,
-                },
+            if let Some(chunk) = &mut self.active {
+                if let Some(value) = chunk.next() {
+                    let result = Some((
+                        K::from(DefaultKey::new(self.chunk_idx, self.value_idx)),
+                        value,
+                    ));
+                    self.value_idx += 1;
+                    break result;
+                }
+                self.active = None;
+                self.chunk_idx += 1;
+            }
+            if let Some(chunk) = self.chunks.next() {
+                self.active = Some(chunk.storage.into_iter());
+            } else {
+                break None;
             }
         }
     }
@@ -683,19 +678,15 @@ impl<'p, T, K: Key> Iterator for Iter<'p, T, K> {
             if self.chunk_idx >= inner.chunks.len() {
                 break None;
             }
-            match self.pile.raw_get(self.chunk_idx, self.value_idx) {
-                Some(value) => {
-                    let result = Some((
-                        K::from(DefaultKey::new(self.chunk_idx, self.value_idx)),
-                        value,
-                    ));
-                    self.value_idx += 1;
-                    break result;
-                }
-                None => {
-                    self.chunk_idx += 1;
-                }
+            if let Some(value) = self.pile.raw_get(self.chunk_idx, self.value_idx) {
+                let result = Some((
+                    K::from(DefaultKey::new(self.chunk_idx, self.value_idx)),
+                    value,
+                ));
+                self.value_idx += 1;
+                break result;
             }
+            self.chunk_idx += 1;
         }
     }
 
