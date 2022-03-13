@@ -40,7 +40,7 @@
 //!
 //! Piles storing values of type `T` are serialized as sequences of type `T`, just as a
 //! `Vec` is, and keys are serialized as the corresponding insertion index. This enables
-//! external tools to simply treat keys as indices into the the serialized sequence.
+//! external tools to simply treat keys as indices into the serialized sequence.
 //!
 //! Using a previously serialized and then deserialized key for accessing a value
 //! without also serializing and then deserializing the corresponding pile is an
