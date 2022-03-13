@@ -1,4 +1,7 @@
-//! # Pile
+//! # Pile    ![pipeline]
+//!
+//! [pipeline]: https://img.shields.io/github/workflow/status/koehlma/pile-rs/Pipeline/main?label=tests
+//!
 //!
 //! A pile is a **fast but limited collection** for storing values of a single type.
 //!
