@@ -291,12 +291,14 @@ pub struct Pile<T, K: Key = DefaultKey> {
 
 impl<T, K: Key> Pile<T, K> {
     /// Constructs an empty pile with a capacity of [`DEFAULT_CAPACITY`].
+    #[must_use]
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_CAPACITY)
     }
 
     /// Constructs an empty pile able to store at least *capacity* values before
     /// needing to allocate.
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         let page_capacity = NORMAL_PAGE_SIZE / std::mem::size_of::<T>();
         let capacity = std::cmp::max(page_capacity, capacity);
