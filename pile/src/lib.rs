@@ -723,6 +723,7 @@ mod tests {
         for (expected, (key, value_ref)) in pile.iter().enumerate() {
             assert_eq!(key.index(), expected);
             assert_eq!(*value_ref, expected);
+            assert_eq!(pile[key], expected);
         }
     }
 }
