@@ -221,7 +221,7 @@ macro_rules! new_key_types {
             $crate::private_key_type_impl_serde!($name);
         };
 
-        $crate::new_key_types!($($other)*)
+        $crate::new_key_types!($($other)*);
     };
 
     // Base case of the macro recursion.
