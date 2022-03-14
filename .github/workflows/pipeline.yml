@@ -9,13 +9,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  build-and-test:
+    name: "Build and Test"
+    
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        features: ["", "serde"]
+    
     steps:
     - uses: actions/checkout@v2
     - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      run: cargo build --verbose --features "${{ matrix.features }}"
+    - name: Test
+      run: cargo test --verbose --features "${{ matrix.features }}"
