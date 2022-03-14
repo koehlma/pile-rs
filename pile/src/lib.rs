@@ -107,7 +107,7 @@ impl serde::Serialize for DefaultKey {
     where
         S: serde::Serializer,
     {
-        self.index.serialize(serializer)
+        self.value_idx.serialize(serializer)
     }
 }
 
@@ -117,8 +117,11 @@ impl<'de> serde::Deserialize<'de> for DefaultKey {
     where
         D: serde::Deserializer<'de>,
     {
-        let index = u32::deserialize(deserializer)?;
-        Ok(Self { chunk: 0, index })
+        let value_idx = u32::deserialize(deserializer)?;
+        Ok(Self {
+            chunk_idx: 0,
+            value_idx,
+        })
     }
 }
 
@@ -610,7 +613,7 @@ impl<T: serde::Serialize, K: Key> serde::Serialize for Pile<T, K> {
     {
         use serde::ser::SerializeSeq;
         let mut seq = serializer.serialize_seq(Some(self.len()))?;
-        for value in self.iter() {
+        for (_, value) in self.iter() {
             seq.serialize_element(value)?;
         }
         seq.end()
