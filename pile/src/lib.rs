@@ -173,21 +173,24 @@ impl Ord for DefaultKey {
 ///
 /// ```
 /// # use pile::*;
-/// new_key_type! {
+/// new_key_types! {
 ///     /// This is a special key type identifying fruits stored in a pile.
 ///     pub struct FruitKey;
+///     
+///     /// Another key type for vegetables which cannot be used with the `fruits` pile.
+///     pub struct VegetableKey;
 /// }
 ///
-/// let pile = Pile::<&'static str, FruitKey>::new();
+/// let fruits = Pile::<&'static str, FruitKey>::new();
 ///
-/// let (apple_key, _) = pile.push("Apple");
-/// let (banana_key, _) = pile.push("Banana");
+/// let (apple_key, _) = fruits.push("Apple");
+/// let (banana_key, _) = fruits.push("Banana");
 ///
-/// assert_eq!(pile[apple_key], "Apple");
+/// assert_eq!(fruits[apple_key], "Apple");
 /// ```
 #[macro_export]
-macro_rules! new_key_type {
-    ($(#[$meta:meta])* $vis:vis struct $name:ident;) => {
+macro_rules! new_key_types {
+    ($(#[$meta:meta])* $vis:vis struct $name:ident; $($other:tt)*) => {
         $(#[$meta])*
         #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
         #[repr(transparent)]
@@ -217,7 +220,12 @@ macro_rules! new_key_type {
 
             $crate::private_key_type_impl_serde!($name);
         };
+
+        $crate::new_key_types!($($other)*)
     };
+
+    // Base case of the macro recursion.
+    () => {}
 }
 
 #[macro_export]
