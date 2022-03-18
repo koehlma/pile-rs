@@ -1,12 +1,12 @@
 [package]
-name = "stacko"
+name = "sharedvec"
 version = "0.1.1"
 description = "A fast but limited collection for storing values of a single type."
 authors = ["Maximilian Köhl <mail@koehlma.de>"]
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/koehlma/stacko-rs"
-documentation = "https://docs.rs/stacko"
+repository = "https://github.com/koehlma/sharedvec-rs"
+documentation = "https://docs.rs/sharedvec"
 readme = "../README.md"
 
 [dependencies]

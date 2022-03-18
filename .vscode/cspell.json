@@ -3,8 +3,6 @@
     "words": [
         "Hasher",
         "repr",
-        "serde",
-        "stacko",
-        "Stacko"
+        "serde"
     ]
 }

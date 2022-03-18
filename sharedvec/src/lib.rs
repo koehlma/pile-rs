@@ -1,35 +1,37 @@
-//! # Stacko    ![pipeline]
+//! # SharedVec    [![Build Status]][actions] [![Latest Version]][crates.io]
 //!
-//! [pipeline]: https://img.shields.io/github/workflow/status/koehlma/stacko-rs/Pipeline/main?label=tests
+//! [Build Status]: https://img.shields.io/github/workflow/status/koehlma/sharedvec-rs/Pipeline/main?label=tests
+//! [actions]: https://github.com/koehlma/sharedvec-rs/actions
+//! [Latest Version]: https://img.shields.io/crates/v/sharedvec.svg
+//! [crates.io]: https://crates.io/crates/sharedvec
 //!
 //!
-//! [`Stacko`] is a **fast but limited ordered collection** for storing values of a single
+//! [`SharedVec`] is a **fast but limited ordered collection** for storing values of a single
 //! type.
 //!
 //!
-//! ## What is a [`Stacko`]?
+//! ## What is a [`SharedVec`]?
 //!
-//! [`Stacko`] is a fast and ordered collection, similar to [`Vec`], onto which values
-//! can be pushed. In contrast to a [`Vec`], a [`Stacko`] allows pushing values
-//! through a shared reference. Pushing values is an *O(1)* operation and will never
-//! relocate previously pushed values, i.e., previous values remain at a stable address
-//! in memory. This enables safe pushing through a shared reference.
+//! [`SharedVec`] is a fast and ordered collection, similar to [`Vec`], onto which values
+//! can be pushed. In contrast to a [`Vec`], a [`SharedVec`] allows pushing values through
+//! a shared reference. Pushing values is an *O(1)* operation and will never relocate
+//! previously pushed values, i.e., previous values remain at a stable address in memory.
+//! This enables safe pushing through a shared reference.
 //!
-//! When pushing a value, [`Stacko`] returns a reference to the value in addition to a
-//! *key*. The key does not borrow from the [`Stacko`] and can be used to retrieve the
-//! value in *O(1)*. In addition, given an exclusive reference to the [`Stacko`], the key
-//! can be used to obtain an exclusive reference to the value in *O(1)*. Every key
-//! corresponds to an insertion *index*. Values can also be accessed by their insertion
-//! index in *O(log n)*. Iterating over a [`Stacko`] or converting it to a [`Vec`] will
-//! also preserve the insertion order.
-//!
-//! Values cannot be removed from a [`Stacko`].
+//! When pushing a value, a [`SharedVec`] returns a shared reference to the value in
+//! addition to a *key*. This key does *not* borrow from the [`SharedVec`] and can be
+//! used to retrieve the value in *O(1)*. In addition, given an exclusive reference to
+//! the [`SharedVec`], the key can be used to obtain an exclusive reference to the value
+//! in *O(1)*. Every key corresponds to an *index* indicating the position of the value
+//! in the [`SharedVec`]. Values can also be accessed by their index in *O(log n)*.
+//! Iterating over a [`SharedVec`] or converting it to a [`Vec`] will also preserve the
+//! order in which values have been pushed onto the [`SharedVec`].
 //!
 //! Here is a list of similar data structures and their differences:
 //!
 //! - A [`TypedArena`](https://docs.rs/typed-arena/) does not provide a key and
 //!   returns an exclusive reference to a value inserted through a shared reference. A
-//!   key is useful because it exists independently of the [`Stacko`] (it does not
+//!   key is useful because it exists independently of the [`SharedVec`] (it does not
 //!   borrow). It can thus be passed around more freely than a reference and
 //!   can also be meaningfully serialized (for details see below).
 //! - A [`Slab`](https://docs.rs/slab) and a [`SlotMap`](https://docs.rs/slotmap) cannot
@@ -40,15 +42,15 @@
 //!
 //! ## Serialization
 //!
-//! Using the `serde` feature flag, a [`Stacko`] and its keys can be serialized with
-//! [Serde][serde].
+//! Using the `serde` feature flag, a [`SharedVec`] and its keys can be serialized with
+//! [Serde](https://docs.rs/serde).
 //!
-//! A [`Stacko`] storing values of type `T` is serialized as a sequence of type `T`,
-//! just as a [`Vec`] of type `T` is, and keys are serialized as the corresponding
-//! insertion index into this sequence. This enables external tools to simply treat keys
+//! A [`SharedVec`] storing values of type `T` is serialized as a sequence of type `T`,
+//! just as a [`Vec`] is, and keys are serialized as an index into this sequence. This
+//! enables external tools to simply treat keys
 //! as indices into the serialized sequence. Using a previously serialized and then
 //! deserialized key for accessing a value without also serializing and then deserializing
-//! the corresponding [`Stacko`] is an *O(log n)* operation (just as accessing by index).
+//! the corresponding [`SharedVec`] is an *O(log n)* operation (just as accessing by index).
 //!
 //! This exact serialization behavior is considered part of the stability guarantees.
 //!
@@ -56,8 +58,8 @@
 //! ## Example
 //!
 //! ```
-//! # use stacko::*;
-//! let vegetables = Stacko::<&'static str>::new();
+//! # use sharedvec::*;
+//! let vegetables = SharedVec::<&'static str>::new();
 //!
 //! let (cucumber_key, cucumber) = vegetables.push("Cucumber");
 //! let (paprika_key, paprika) = vegetables.push("Paprika");
@@ -73,7 +75,7 @@ use std::{cell::RefCell, marker::PhantomData};
 #[cfg(feature = "serde")]
 pub use serde;
 
-/// Key used to access values stored in some [`Stacko`].
+/// Key used to access values stored in some [`SharedVec`].
 ///
 /// A [`Key`] must support infallible conversion from and to [`DefaultKey`].
 pub trait Key: Clone + Copy + From<DefaultKey> + Into<DefaultKey> {
@@ -81,7 +83,7 @@ pub trait Key: Clone + Copy + From<DefaultKey> + Into<DefaultKey> {
     fn index(self) -> usize;
 }
 
-/// Default key type to access values stored in some [`Stacko`].
+/// Default key type to access values stored in some [`SharedVec`].
 #[derive(Clone, Copy, Debug)]
 pub struct DefaultKey {
     chunk_idx: u32,
@@ -171,23 +173,23 @@ impl Ord for DefaultKey {
 
 /// Defines a new type of [`Key`].
 ///
-/// 📌 **Using different key types for different [`Stacko`]s can prevent using the wrong
-/// key to access a value in the wrong [`Stacko`].**
+/// 📌 **Using different key types for different [`SharedVec`]s can prevent using the wrong
+/// key to access a value in the wrong [`SharedVec`].**
 ///
 ///
 /// # Examples
 ///
 /// ```
-/// # use stacko::*;
+/// # use sharedvec::*;
 /// new_key_types! {
-///     /// This is a special key type identifying fruits stored in a Stacko.
+///     /// This is a special key type identifying fruits stored in a SharedVec.
 ///     pub struct FruitKey;
-///     
-///     /// Another key type for vegetables which cannot be used with the `fruits` Stacko.
+///
+///     /// Another key type for vegetables which cannot be used with the `fruits` SharedVec.
 ///     pub struct VegetableKey;
 /// }
 ///
-/// let fruits = Stacko::<&'static str, FruitKey>::new();
+/// let fruits = SharedVec::<&'static str, FruitKey>::new();
 ///
 /// let (apple_key, _) = fruits.push("Apple");
 /// let (banana_key, _) = fruits.push("Banana");
@@ -268,10 +270,10 @@ macro_rules! private_key_type_impl_serde {
     };
 }
 
-/// The default capacity of a [`Stacko`].
+/// The default capacity of a [`SharedVec`].
 pub const DEFAULT_CAPACITY: usize = 32;
 
-// The chunks of a `Stacko` grow until they reach the `HUGE_PAGE_SIZE`.
+// The chunks of a `SharedVec` grow until they reach the `HUGE_PAGE_SIZE`.
 //
 // This is based on how the `TypedArena` in the Rust compiler works.
 const NORMAL_PAGE_SIZE: usize = 4096;
@@ -293,62 +295,64 @@ impl<T> Chunk<T> {
 }
 
 #[derive(Clone, Debug)]
-struct StackoInner<T> {
+struct SharedVecInner<T> {
     chunks: Vec<Chunk<T>>,
 }
 
-/// A [`Stacko`] for storing values of a single type.
+/// A [`SharedVec`] for storing values of a single type.
 #[derive(Clone, Debug)]
-pub struct Stacko<T, K: Key = DefaultKey> {
-    inner: RefCell<StackoInner<T>>,
+pub struct SharedVec<T, K: Key = DefaultKey> {
+    inner: RefCell<SharedVecInner<T>>,
     _phantom_key: PhantomData<K>,
 }
 
-impl<T, K: Key> Stacko<T, K> {
-    /// Constructs an empty [`Stacko`] with a capacity of [`DEFAULT_CAPACITY`].
+impl<T, K: Key> SharedVec<T, K> {
+    /// Constructs an empty [`SharedVec`] with a capacity of [`DEFAULT_CAPACITY`].
     #[must_use]
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_CAPACITY)
     }
 
-    /// Constructs an empty [`Stacko`] able to store at least *capacity* values before
+    /// Constructs an empty [`SharedVec`] able to store at least *capacity* values before
     /// needing to allocate.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         let page_capacity = NORMAL_PAGE_SIZE / std::mem::size_of::<T>();
         let capacity = std::cmp::max(page_capacity, capacity);
         Self {
-            inner: RefCell::new(StackoInner {
+            inner: RefCell::new(SharedVecInner {
                 chunks: vec![Chunk::new(0, capacity)],
             }),
             _phantom_key: PhantomData,
         }
     }
 
-    /// Pushes a *value* onto the [`Stacko`] potentially allocating more memory.
+    /// Pushes a *value* onto the [`SharedVec`] potentially allocating more memory.
     pub fn push(&self, value: T) -> (K, &T) {
         self.try_push(value).unwrap_or_else(|value| {
             self.grow(1);
             match self.try_push(value) {
                 Ok(result) => result,
-                Err(_) => unreachable!("There should be space because we just grew the `Stacko`."),
+                Err(_) => {
+                    unreachable!("There should be space because we just grew the `SharedVec`.")
+                }
             }
         })
     }
 
-    /// Tries to push a *value* onto the [`Stacko`] *without* allocating more memory.
+    /// Tries to push a *value* onto the [`SharedVec`] *without* allocating more memory.
     ///
     ///
     /// # Errors
     ///
-    /// Fails in case no space is available in the [`Stacko`].
+    /// Fails in case no space is available in the [`SharedVec`].
     pub fn try_push(&self, value: T) -> Result<(K, &T), T> {
         let mut inner = self.inner.borrow_mut();
         let chunk_idx = inner.chunks.len() - 1;
         let active = inner
             .chunks
             .last_mut()
-            .expect("There should be at least one chunk in the `Stacko`.");
+            .expect("There should be at least one chunk in the `SharedVec`.");
         let offset = active.storage.len();
         if offset < active.storage.capacity() {
             active.storage.push(value);
@@ -356,7 +360,7 @@ impl<T, K: Key> Stacko<T, K> {
             // SAFETY: This is safe because we just ensured that there is a value stored
             // at the given offset. It is also safe to create a reference into the storage
             // because `Vec` dereferences to stable addresses and no exclusive reference
-            // to the same value can be obtained through a shared reference to the Stacko.
+            // to the same value can be obtained through a shared reference to the SharedVec.
             let reference = unsafe { &*active.storage.as_ptr().add(offset) };
             let value_idx = active.start + offset;
             Ok((K::from(DefaultKey::new(chunk_idx, value_idx)), reference))
@@ -365,26 +369,26 @@ impl<T, K: Key> Stacko<T, K> {
         }
     }
 
-    /// The number of values stored in the [`Stacko`].
+    /// The number of values stored in the [`SharedVec`].
     pub fn len(&self) -> usize {
         let inner = self.inner.borrow();
         let active = inner
             .chunks
             .last()
-            .expect("There should be at least one chunk in the Stacko.");
+            .expect("There should be at least one chunk in the SharedVec.");
         (active.start as usize) + active.storage.len()
     }
 
-    /// Checks whether the [`Stacko`] is empty.
+    /// Checks whether the [`SharedVec`] is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns a shared reference to the value stored for the given *key*.
     ///
-    /// The complexity is *O(1)* if the *key* has been returned by this [`Stacko`]. It
+    /// The complexity is *O(1)* if the *key* has been returned by this [`SharedVec`]. It
     /// is *O(log n)* if the *key* cannot be found or it has been serialized and
-    /// deserialized without also serializing and deserializing the [`Stacko`].
+    /// deserialized without also serializing and deserializing the [`SharedVec`].
     pub fn get(&self, key: K) -> Option<&T> {
         let key: DefaultKey = key.into();
         self.raw_get(key.chunk_idx(), key.value_idx())
@@ -400,7 +404,7 @@ impl<T, K: Key> Stacko<T, K> {
 
     /// Returns an exclusive reference to the value stored for the given *key*.
     ///
-    /// For details see [`get`][Stacko::get].
+    /// For details see [`get`][SharedVec::get].
     pub fn get_mut(&mut self, key: K) -> Option<&mut T> {
         let key: DefaultKey = key.into();
         // 💩 This would be much cleaner if `raw_get_mut` and `get_mut_slow` would take
@@ -410,7 +414,7 @@ impl<T, K: Key> Stacko<T, K> {
         // reference for the call to `get_mut_slow` again.
         //
         // SAFETY: This is safe because there cannot be any other references into the
-        // Stacko as we have an exclusive reference to the Stacko. Hence, there can be no
+        // SharedVec as we have an exclusive reference to the SharedVec. Hence, there can be no
         // references to the value for `key`, in particular.
         unsafe {
             self.raw_get_mut(key.chunk_idx(), key.value_idx())
@@ -426,7 +430,7 @@ impl<T, K: Key> Stacko<T, K> {
     ///
     /// The caller must ensure that there are no other references to the value stored
     /// for the provided *key*. The method `get_mut` ensures this by taking an exclusive
-    /// reference to the [`Stacko`].
+    /// reference to the [`SharedVec`].
     #[cold]
     unsafe fn get_mut_slow(&self, key: DefaultKey) -> Option<&mut T> {
         let key: DefaultKey = self.key_from_index(key.index())?.into();
@@ -451,7 +455,7 @@ impl<T, K: Key> Stacko<T, K> {
         }
     }
 
-    /// Turns the [`Stacko`] into a [`Vec`].
+    /// Turns the [`SharedVec`] into a [`Vec`].
     ///
     /// The *index* of [`Key`] can be used as an index into the returned [`Vec`].
     pub fn into_vec(self) -> Vec<T> {
@@ -466,20 +470,20 @@ impl<T, K: Key> Stacko<T, K> {
     /// Returns an [`Iterator`] over the stored key-value pairs.
     pub fn iter(&self) -> Iter<T, K> {
         Iter {
-            stacko: self,
+            sharedvec: self,
             chunk_idx: 0,
             value_idx: 0,
         }
     }
 
-    /// Grows the [`Stacko`] such that there is space for at least *additional* values.
+    /// Grows the [`SharedVec`] such that there is space for at least *additional* values.
     #[cold]
     fn grow(&self, additional: usize) {
         let mut inner = self.inner.borrow_mut();
         let active = inner
             .chunks
             .last()
-            .expect("There should be at least one chunk in the Stacko.");
+            .expect("There should be at least one chunk in the SharedVec.");
         debug_assert!(
             active.storage.len() == active.storage.capacity(),
             "The active chunk is not full yet?"
@@ -517,7 +521,7 @@ impl<T, K: Key> Stacko<T, K> {
     ///
     /// The caller must ensure that there are no other references to the value stored
     /// in the given *chunk* with the given *index*. The method `get_mut` ensures this
-    /// by taking an exclusive reference to the [`Stacko`].
+    /// by taking an exclusive reference to the [`SharedVec`].
     unsafe fn raw_get_mut(&self, chunk: usize, index: usize) -> Option<&mut T> {
         self.inner
             .borrow_mut()
@@ -536,16 +540,16 @@ impl<T, K: Key> Stacko<T, K> {
     }
 }
 
-impl<T, K: Key> From<Stacko<T, K>> for Vec<T> {
-    fn from(stacko: Stacko<T, K>) -> Self {
-        stacko.into_vec()
+impl<T, K: Key> From<SharedVec<T, K>> for Vec<T> {
+    fn from(sharedvec: SharedVec<T, K>) -> Self {
+        sharedvec.into_vec()
     }
 }
 
-impl<T, K: Key> From<Vec<T>> for Stacko<T, K> {
+impl<T, K: Key> From<Vec<T>> for SharedVec<T, K> {
     fn from(chunk: Vec<T>) -> Self {
         Self {
-            inner: RefCell::new(StackoInner {
+            inner: RefCell::new(SharedVecInner {
                 chunks: vec![Chunk {
                     start: 0,
                     storage: chunk,
@@ -556,13 +560,13 @@ impl<T, K: Key> From<Vec<T>> for Stacko<T, K> {
     }
 }
 
-impl<T, K: Key> Default for Stacko<T, K> {
+impl<T, K: Key> Default for SharedVec<T, K> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'p, T, K: Key> IntoIterator for &'p Stacko<T, K> {
+impl<'p, T, K: Key> IntoIterator for &'p SharedVec<T, K> {
     type Item = (K, &'p T);
 
     type IntoIter = Iter<'p, T, K>;
@@ -572,7 +576,7 @@ impl<'p, T, K: Key> IntoIterator for &'p Stacko<T, K> {
     }
 }
 
-impl<T, K: Key> IntoIterator for Stacko<T, K> {
+impl<T, K: Key> IntoIterator for SharedVec<T, K> {
     type Item = (K, T);
 
     type IntoIter = IntoIter<T, K>;
@@ -588,20 +592,20 @@ impl<T, K: Key> IntoIterator for Stacko<T, K> {
     }
 }
 
-impl<T, K: Key> FromIterator<T> for Stacko<T, K> {
+impl<T, K: Key> FromIterator<T> for SharedVec<T, K> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let iter = iter.into_iter();
         let (lower_bound, upper_bound) = iter.size_hint();
         let capacity = upper_bound.unwrap_or(lower_bound);
-        let stacko = Stacko::with_capacity(capacity);
+        let sharedvec = SharedVec::with_capacity(capacity);
         for value in iter {
-            stacko.push(value);
+            sharedvec.push(value);
         }
-        stacko
+        sharedvec
     }
 }
 
-impl<T, K: Key> std::ops::Index<K> for Stacko<T, K> {
+impl<T, K: Key> std::ops::Index<K> for SharedVec<T, K> {
     type Output = T;
 
     fn index(&self, key: K) -> &Self::Output {
@@ -610,7 +614,7 @@ impl<T, K: Key> std::ops::Index<K> for Stacko<T, K> {
     }
 }
 
-impl<T, K: Key> std::ops::IndexMut<K> for Stacko<T, K> {
+impl<T, K: Key> std::ops::IndexMut<K> for SharedVec<T, K> {
     fn index_mut(&mut self, key: K) -> &mut Self::Output {
         self.get_mut(key)
             .expect("No value has been stored for the given key.")
@@ -618,7 +622,7 @@ impl<T, K: Key> std::ops::IndexMut<K> for Stacko<T, K> {
 }
 
 #[cfg(feature = "serde")]
-impl<T: serde::Serialize, K: Key> serde::Serialize for Stacko<T, K> {
+impl<T: serde::Serialize, K: Key> serde::Serialize for SharedVec<T, K> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -633,7 +637,7 @@ impl<T: serde::Serialize, K: Key> serde::Serialize for Stacko<T, K> {
 }
 
 #[cfg(feature = "serde")]
-impl<'de, T: serde::Deserialize<'de>, K: Key> serde::Deserialize<'de> for Stacko<T, K> {
+impl<'de, T: serde::Deserialize<'de>, K: Key> serde::Deserialize<'de> for SharedVec<T, K> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -642,7 +646,7 @@ impl<'de, T: serde::Deserialize<'de>, K: Key> serde::Deserialize<'de> for Stacko
     }
 }
 
-/// An [`Iterator`] that moves key-value pairs out of a [`Stacko`].
+/// An [`Iterator`] that moves key-value pairs out of a [`SharedVec`].
 pub struct IntoIter<T, K: Key> {
     chunks: std::vec::IntoIter<Chunk<T>>,
     active: Option<std::vec::IntoIter<T>>,
@@ -677,9 +681,9 @@ impl<T, K: Key> Iterator for IntoIter<T, K> {
     }
 }
 
-/// An [`Iterator`] over key-value pairs in a [`Stacko`].
+/// An [`Iterator`] over key-value pairs in a [`SharedVec`].
 pub struct Iter<'p, T, K: Key> {
-    stacko: &'p Stacko<T, K>,
+    sharedvec: &'p SharedVec<T, K>,
     chunk_idx: usize,
     value_idx: usize,
 }
@@ -689,11 +693,11 @@ impl<'p, T, K: Key> Iterator for Iter<'p, T, K> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let inner = self.stacko.inner.borrow();
+            let inner = self.sharedvec.inner.borrow();
             if self.chunk_idx >= inner.chunks.len() {
                 break None;
             }
-            if let Some(value) = self.stacko.raw_get(self.chunk_idx, self.value_idx) {
+            if let Some(value) = self.sharedvec.raw_get(self.chunk_idx, self.value_idx) {
                 let result = Some((
                     K::from(DefaultKey::new(self.chunk_idx, self.value_idx)),
                     value,
@@ -707,11 +711,11 @@ impl<'p, T, K: Key> Iterator for Iter<'p, T, K> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         // No upper bound because values can be inserted while iterating.
-        (self.stacko.len(), None)
+        (self.sharedvec.len(), None)
     }
 
     fn count(self) -> usize {
-        self.stacko.len() - self.value_idx
+        self.sharedvec.len() - self.value_idx
     }
 }
 
@@ -721,17 +725,17 @@ mod tests {
 
     #[test]
     pub fn test_many() {
-        let stacko = Stacko::<usize>::new();
+        let sharedvec = SharedVec::<usize>::new();
         let values = (0..10_000)
-            .map(|value| stacko.push(value))
+            .map(|value| sharedvec.push(value))
             .collect::<Vec<_>>();
         for (expected, (key, _)) in values.iter().enumerate() {
-            assert_eq!(stacko[*key], expected)
+            assert_eq!(sharedvec[*key], expected)
         }
-        for (expected, (key, value_ref)) in stacko.iter().enumerate() {
+        for (expected, (key, value_ref)) in sharedvec.iter().enumerate() {
             assert_eq!(key.index(), expected);
             assert_eq!(*value_ref, expected);
-            assert_eq!(stacko[key], expected);
+            assert_eq!(sharedvec[key], expected);
         }
     }
 }
