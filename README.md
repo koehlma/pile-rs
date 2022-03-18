@@ -13,20 +13,19 @@ type.
 ## What is a `SharedVec`?
 
 `SharedVec` is a fast and ordered collection, similar to `Vec`, onto which values
-can be pushed. In contrast to a `Vec`, a `SharedVec` allows pushing values
-through a shared reference but, in turn, does not allow values to be removed. Pushing values is an *O(1)* operation and will never
-relocate previously pushed values, i.e., previous values remain at a stable address
-in memory. This enables safe pushing through a shared reference.
+can be pushed. In contrast to a `Vec`, a `SharedVec` allows pushing values through
+a shared reference. Pushing values is an *O(1)* operation and will never relocate
+previously pushed values, i.e., previous values remain at a stable address in memory.
+This enables safe pushing through a shared reference.
 
-When pushing a value, `SharedVec` returns a reference to the value in addition to a
-*key*. The key does not borrow from the `SharedVec` and can be used to retrieve the
-value in *O(1)*. In addition, given an exclusive reference to the `SharedVec`, the key
-can be used to obtain an exclusive reference to the value in *O(1)*. Every key
-corresponds to an insertion *index*. Values can also be accessed by their insertion
-index in *O(log n)*. Iterating over a `SharedVec` or converting it to a `Vec` will
-also preserve the insertion order.
-
-Values cannot be removed from a `SharedVec`.
+When pushing a value, a `SharedVec` returns a shared reference to the value in
+addition to a *key*. This key does *not* borrow from the `SharedVec` and can be
+used to retrieve the value in *O(1)*. In addition, given an exclusive reference to
+the `SharedVec`, the key can be used to obtain an exclusive reference to the value
+in *O(1)*. Every key corresponds to an *index* indicating the position of the value
+in the `SharedVec`. Values can also be accessed by their index in *O(log n)*.
+Iterating over a `SharedVec` or converting it to a `Vec` will also preserve the
+order in which values have been pushed onto the `SharedVec`.
 
 Here is a list of similar data structures and their differences:
 
@@ -44,11 +43,11 @@ Here is a list of similar data structures and their differences:
 ## Serialization
 
 Using the `serde` feature flag, a `SharedVec` and its keys can be serialized with
-[Serde](https://serde.rs/).
+[Serde](https://docs.rs/serde).
 
 A `SharedVec` storing values of type `T` is serialized as a sequence of type `T`,
-just as a `Vec` of type `T` is, and keys are serialized as the corresponding
-insertion index into this sequence. This enables external tools to simply treat keys
+just as a `Vec` is, and keys are serialized as an index into this sequence. This
+enables external tools to simply treat keys
 as indices into the serialized sequence. Using a previously serialized and then
 deserialized key for accessing a value without also serializing and then deserializing
 the corresponding `SharedVec` is an *O(log n)* operation (just as accessing by index).
