@@ -407,34 +407,17 @@ impl<T, K: Key> SharedVec<T, K> {
     /// For details see [`get`][SharedVec::get].
     pub fn get_mut(&mut self, key: K) -> Option<&mut T> {
         let key: DefaultKey = key.into();
-        // 💩 This would be much cleaner if `raw_get_mut` and `get_mut_slow` would take
-        // an exclusive reference to `self`. However, this does not work because the
-        // borrow checker does not understand that in the `None` branch, nothing is
-        // mutably borrowed from `self` and, hence, does not let use use our exclusive
-        // reference for the call to `get_mut_slow` again.
-        //
-        // SAFETY: This is safe because there cannot be any other references into the
-        // SharedVec as we have an exclusive reference to the SharedVec. Hence, there can be no
-        // references to the value for `key`, in particular.
-        unsafe {
-            self.raw_get_mut(key.chunk_idx(), key.value_idx())
-                .or_else(|| self.get_mut_slow(key))
+        match self.raw_get_mut(key.chunk_idx(), key.value_idx()) {
+            Ok(r) => Some(r),
+            Err(this) => this.get_mut_slow(key),
         }
     }
 
     /// Slow path of `get_mut` in case we need to lookup the key by index.
-    ///
-    /// 💩 See `get_mut` for why this method does not take an exclusive `self` reference.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that there are no other references to the value stored
-    /// for the provided *key*. The method `get_mut` ensures this by taking an exclusive
-    /// reference to the [`SharedVec`].
     #[cold]
-    unsafe fn get_mut_slow(&self, key: DefaultKey) -> Option<&mut T> {
+    fn get_mut_slow(&mut self, key: DefaultKey) -> Option<&mut T> {
         let key: DefaultKey = self.key_from_index(key.index())?.into();
-        self.raw_get_mut(key.chunk_idx(), key.value_idx())
+        self.raw_get_mut(key.chunk_idx(), key.value_idx()).ok()
     }
 
     /// Returns a key corresponding to the provided *index* if a value is stored at the
@@ -515,15 +498,11 @@ impl<T, K: Key> SharedVec<T, K> {
     /// Returns an exclusive reference to the value stored in the given *chunk* at the
     /// given *index*.
     ///
-    /// 💩 See `get_mut` for why this method does not take an exclusive `self` reference.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure that there are no other references to the value stored
-    /// in the given *chunk* with the given *index*. The method `get_mut` ensures this
-    /// by taking an exclusive reference to the [`SharedVec`].
-    unsafe fn raw_get_mut(&self, chunk: usize, index: usize) -> Option<&mut T> {
-        self.inner
+    /// This function returns `&mut Self` on error to avoid lifetime issues for callers.
+    /// Once Polonius is implemented it won't be necessary anymore.
+    fn raw_get_mut(&mut self, chunk: usize, index: usize) -> Result<&mut T, &mut Self> {
+        let option = self
+            .inner
             .borrow_mut()
             .chunks
             .get_mut(chunk)
@@ -532,11 +511,12 @@ impl<T, K: Key> SharedVec<T, K> {
                 if offset < chunk.storage.len() {
                     // SAFETY: The caller must guarantee that no other references to
                     // this value and `Vec` dereferences to a stable address.
-                    Some(&mut *(chunk.storage.as_mut_ptr().add(offset)))
+                    Some(unsafe { &mut *(chunk.storage.as_mut_ptr().add(offset)) })
                 } else {
                     None
                 }
-            })
+            });
+        option.ok_or(self)
     }
 }
 
