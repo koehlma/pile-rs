@@ -1,57 +1,63 @@
-//! # Pile    ![pipeline]
+//! # Stacko    ![pipeline]
 //!
-//! [pipeline]: https://img.shields.io/github/workflow/status/koehlma/pile-rs/Pipeline/main?label=tests
-//!
-//!
-//! A pile is a **fast but limited collection** for storing values of a single type.
+//! [pipeline]: https://img.shields.io/github/workflow/status/koehlma/stacko-rs/Pipeline/main?label=tests
 //!
 //!
-//! ## What is a pile?
+//! [`Stacko`] is a **fast but limited ordered collection** for storing values of a single
+//! type.
 //!
-//! A pile is an ordered collection, similar to `Vec`, onto which values can be
-//! pushed. In contrast to `Vec`, a pile allows pushing values through a shared
-//! reference. Pushing values is an *O(1)* operation and will never relocate previously
-//! pushed values, i.e., previously pushed values remain at a stable address in
-//! memory. This enables safe pushing through a shared reference.
 //!
-//! When pushing a value, a pile returns a reference to the value in addition to a
-//! *key*. The key does not borrow from the pile and can be used to retrieve the
-//! value in *O(1)*. In addition, given an exclusive reference to the pile, the key
+//! ## What is a [`Stacko`]?
+//!
+//! [`Stacko`] is a fast and ordered collection, similar to [`Vec`], onto which values
+//! can be pushed. In contrast to a [`Vec`], a [`Stacko`] allows pushing values
+//! through a shared reference. Pushing values is an *O(1)* operation and will never
+//! relocate previously pushed values, i.e., previous values remain at a stable address
+//! in memory. This enables safe pushing through a shared reference.
+//!
+//! When pushing a value, [`Stacko`] returns a reference to the value in addition to a
+//! *key*. The key does not borrow from the [`Stacko`] and can be used to retrieve the
+//! value in *O(1)*. In addition, given an exclusive reference to the [`Stacko`], the key
 //! can be used to obtain an exclusive reference to the value in *O(1)*. Every key
 //! corresponds to an insertion *index*. Values can also be accessed by their insertion
-//! index in *O(log n)*. Iterating over a pile or converting it to a vector will also
-//! preserve the insertion order.
+//! index in *O(log n)*. Iterating over a [`Stacko`] or converting it to a [`Vec`] will
+//! also preserve the insertion order.
+//!
+//! Values cannot be removed from a [`Stacko`].
 //!
 //! Here is a list of similar data structures and their differences:
 //!
 //! - A [`TypedArena`](https://docs.rs/typed-arena/) does not provide a key and
 //!   returns an exclusive reference to a value inserted through a shared reference. A
-//!   key is useful because it exists independently of the pile (it does not borrow
-//!   from the pile). It can thus be passed around more freely than a reference and
+//!   key is useful because it exists independently of the [`Stacko`] (it does not
+//!   borrow). It can thus be passed around more freely than a reference and
 //!   can also be meaningfully serialized (for details see below).
 //! - A [`Slab`](https://docs.rs/slab) and a [`SlotMap`](https://docs.rs/slotmap) cannot
 //!   be mutated trough a shared reference. If mutation through a shared reference is
-//!   not required, you may want to use those as they are generally much more flexible.
+//!   not required, you may want to consider those as they are generally much more
+//!   flexible.
 //!
 //!
 //! ## Serialization
 //!
-//! Using the `serde` feature, piles and keys can be serialized.
+//! Using the `serde` feature flag, a [`Stacko`] and its keys can be serialized with
+//! [Serde][serde].
 //!
-//! Piles storing values of type `T` are serialized as sequences of type `T`, just as a
-//! `Vec` is, and keys are serialized as the corresponding insertion index. This enables
-//! external tools to simply treat keys as indices into the serialized sequence.
+//! A [`Stacko`] storing values of type `T` is serialized as a sequence of type `T`,
+//! just as a [`Vec`] of type `T` is, and keys are serialized as the corresponding
+//! insertion index into this sequence. This enables external tools to simply treat keys
+//! as indices into the serialized sequence. Using a previously serialized and then
+//! deserialized key for accessing a value without also serializing and then deserializing
+//! the corresponding [`Stacko`] is an *O(log n)* operation (just as accessing by index).
 //!
-//! Using a previously serialized and then deserialized key for accessing a value
-//! without also serializing and then deserializing the corresponding pile is an
-//! *O(log n)* operation (just as accessing by index).
+//! This exact serialization behavior is considered part of the stability guarantees.
 //!
 //!
 //! ## Example
 //!
 //! ```
-//! # use pile::*;
-//! let vegetables = Pile::<&'static str>::new();
+//! # use stacko::*;
+//! let vegetables = Stacko::<&'static str>::new();
 //!
 //! let (cucumber_key, cucumber) = vegetables.push("Cucumber");
 //! let (paprika_key, paprika) = vegetables.push("Paprika");
@@ -67,7 +73,7 @@ use std::{cell::RefCell, marker::PhantomData};
 #[cfg(feature = "serde")]
 pub use serde;
 
-/// Key used to access values stored in some [`Pile`].
+/// Key used to access values stored in some [`Stacko`].
 ///
 /// A [`Key`] must support infallible conversion from and to [`DefaultKey`].
 pub trait Key: Clone + Copy + From<DefaultKey> + Into<DefaultKey> {
@@ -75,7 +81,7 @@ pub trait Key: Clone + Copy + From<DefaultKey> + Into<DefaultKey> {
     fn index(self) -> usize;
 }
 
-/// Default key type to access values stored in some [`Pile`].
+/// Default key type to access values stored in some [`Stacko`].
 #[derive(Clone, Copy, Debug)]
 pub struct DefaultKey {
     chunk_idx: u32,
@@ -165,23 +171,23 @@ impl Ord for DefaultKey {
 
 /// Defines a new type of [`Key`].
 ///
-/// 📌 **Using different key types for different piles can prevent using the wrong key to
-/// access a value in the wrong pile.**
+/// 📌 **Using different key types for different [`Stacko`]s can prevent using the wrong
+/// key to access a value in the wrong [`Stacko`].**
 ///
 ///
 /// # Examples
 ///
 /// ```
-/// # use pile::*;
+/// # use stacko::*;
 /// new_key_types! {
-///     /// This is a special key type identifying fruits stored in a pile.
+///     /// This is a special key type identifying fruits stored in a Stacko.
 ///     pub struct FruitKey;
 ///     
-///     /// Another key type for vegetables which cannot be used with the `fruits` pile.
+///     /// Another key type for vegetables which cannot be used with the `fruits` Stacko.
 ///     pub struct VegetableKey;
 /// }
 ///
-/// let fruits = Pile::<&'static str, FruitKey>::new();
+/// let fruits = Stacko::<&'static str, FruitKey>::new();
 ///
 /// let (apple_key, _) = fruits.push("Apple");
 /// let (banana_key, _) = fruits.push("Banana");
@@ -262,12 +268,10 @@ macro_rules! private_key_type_impl_serde {
     };
 }
 
-/// The default capacity of a [`Pile`].
-///
-/// If you expect less values, a [`Pile`] is probably the wrong data structure. 😉
+/// The default capacity of a [`Stacko`].
 pub const DEFAULT_CAPACITY: usize = 32;
 
-// The chunks of a pile grow until they reach the `HUGE_PAGE_SIZE`.
+// The chunks of a `Stacko` grow until they reach the `HUGE_PAGE_SIZE`.
 //
 // This is based on how the `TypedArena` in the Rust compiler works.
 const NORMAL_PAGE_SIZE: usize = 4096;
@@ -289,62 +293,62 @@ impl<T> Chunk<T> {
 }
 
 #[derive(Clone, Debug)]
-struct PileInner<T> {
+struct StackoInner<T> {
     chunks: Vec<Chunk<T>>,
 }
 
-/// A [`Pile`] for storing values of a single type.
+/// A [`Stacko`] for storing values of a single type.
 #[derive(Clone, Debug)]
-pub struct Pile<T, K: Key = DefaultKey> {
-    inner: RefCell<PileInner<T>>,
+pub struct Stacko<T, K: Key = DefaultKey> {
+    inner: RefCell<StackoInner<T>>,
     _phantom_key: PhantomData<K>,
 }
 
-impl<T, K: Key> Pile<T, K> {
-    /// Constructs an empty pile with a capacity of [`DEFAULT_CAPACITY`].
+impl<T, K: Key> Stacko<T, K> {
+    /// Constructs an empty [`Stacko`] with a capacity of [`DEFAULT_CAPACITY`].
     #[must_use]
     pub fn new() -> Self {
         Self::with_capacity(DEFAULT_CAPACITY)
     }
 
-    /// Constructs an empty pile able to store at least *capacity* values before
+    /// Constructs an empty [`Stacko`] able to store at least *capacity* values before
     /// needing to allocate.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         let page_capacity = NORMAL_PAGE_SIZE / std::mem::size_of::<T>();
         let capacity = std::cmp::max(page_capacity, capacity);
         Self {
-            inner: RefCell::new(PileInner {
+            inner: RefCell::new(StackoInner {
                 chunks: vec![Chunk::new(0, capacity)],
             }),
             _phantom_key: PhantomData,
         }
     }
 
-    /// Pushes a *value* onto the pile potentially allocating more memory.
+    /// Pushes a *value* onto the [`Stacko`] potentially allocating more memory.
     pub fn push(&self, value: T) -> (K, &T) {
         self.try_push(value).unwrap_or_else(|value| {
             self.grow(1);
             match self.try_push(value) {
                 Ok(result) => result,
-                Err(_) => unreachable!("There should be space because we just grew the pile."),
+                Err(_) => unreachable!("There should be space because we just grew the `Stacko`."),
             }
         })
     }
 
-    /// Tries to push a *value* onto the pile *without* allocating more memory.
+    /// Tries to push a *value* onto the [`Stacko`] *without* allocating more memory.
     ///
     ///
     /// # Errors
     ///
-    /// Fails in case no space is available in the pile.
+    /// Fails in case no space is available in the [`Stacko`].
     pub fn try_push(&self, value: T) -> Result<(K, &T), T> {
         let mut inner = self.inner.borrow_mut();
         let chunk_idx = inner.chunks.len() - 1;
         let active = inner
             .chunks
             .last_mut()
-            .expect("There should be at least one chunk in the pile.");
+            .expect("There should be at least one chunk in the `Stacko`.");
         let offset = active.storage.len();
         if offset < active.storage.capacity() {
             active.storage.push(value);
@@ -352,7 +356,7 @@ impl<T, K: Key> Pile<T, K> {
             // SAFETY: This is safe because we just ensured that there is a value stored
             // at the given offset. It is also safe to create a reference into the storage
             // because `Vec` dereferences to stable addresses and no exclusive reference
-            // to the same value can be obtained through a shared reference to the pile.
+            // to the same value can be obtained through a shared reference to the Stacko.
             let reference = unsafe { &*active.storage.as_ptr().add(offset) };
             let value_idx = active.start + offset;
             Ok((K::from(DefaultKey::new(chunk_idx, value_idx)), reference))
@@ -361,26 +365,26 @@ impl<T, K: Key> Pile<T, K> {
         }
     }
 
-    /// The number of values stored in the pile.
+    /// The number of values stored in the [`Stacko`].
     pub fn len(&self) -> usize {
         let inner = self.inner.borrow();
         let active = inner
             .chunks
             .last()
-            .expect("There should be at least one chunk in the pile.");
+            .expect("There should be at least one chunk in the Stacko.");
         (active.start as usize) + active.storage.len()
     }
 
-    /// Checks whether the pile is empty.
+    /// Checks whether the [`Stacko`] is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns a shared reference to the value stored for the given *key*.
     ///
-    /// The complexity is *O(1)* if the *key* has been returned by this pile. It
+    /// The complexity is *O(1)* if the *key* has been returned by this [`Stacko`]. It
     /// is *O(log n)* if the *key* cannot be found or it has been serialized and
-    /// deserialized without also serializing and deserializing the pile.
+    /// deserialized without also serializing and deserializing the [`Stacko`].
     pub fn get(&self, key: K) -> Option<&T> {
         let key: DefaultKey = key.into();
         self.raw_get(key.chunk_idx(), key.value_idx())
@@ -396,7 +400,7 @@ impl<T, K: Key> Pile<T, K> {
 
     /// Returns an exclusive reference to the value stored for the given *key*.
     ///
-    /// For details see [`get`][Pile::get].
+    /// For details see [`get`][Stacko::get].
     pub fn get_mut(&mut self, key: K) -> Option<&mut T> {
         let key: DefaultKey = key.into();
         // 💩 This would be much cleaner if `raw_get_mut` and `get_mut_slow` would take
@@ -406,7 +410,7 @@ impl<T, K: Key> Pile<T, K> {
         // reference for the call to `get_mut_slow` again.
         //
         // SAFETY: This is safe because there cannot be any other references into the
-        // pile as we have an exclusive reference to the pile. Hence, there can be no
+        // Stacko as we have an exclusive reference to the Stacko. Hence, there can be no
         // references to the value for `key`, in particular.
         unsafe {
             self.raw_get_mut(key.chunk_idx(), key.value_idx())
@@ -422,7 +426,7 @@ impl<T, K: Key> Pile<T, K> {
     ///
     /// The caller must ensure that there are no other references to the value stored
     /// for the provided *key*. The method `get_mut` ensures this by taking an exclusive
-    /// reference to the pile.
+    /// reference to the [`Stacko`].
     #[cold]
     unsafe fn get_mut_slow(&self, key: DefaultKey) -> Option<&mut T> {
         let key: DefaultKey = self.key_from_index(key.index())?.into();
@@ -447,9 +451,9 @@ impl<T, K: Key> Pile<T, K> {
         }
     }
 
-    /// Turns the pile into a vector.
+    /// Turns the [`Stacko`] into a [`Vec`].
     ///
-    /// The *index* of [`Key`] can be used as an index into the returned vector.
+    /// The *index* of [`Key`] can be used as an index into the returned [`Vec`].
     pub fn into_vec(self) -> Vec<T> {
         let mut result = Vec::with_capacity(self.len());
         let inner = self.inner.into_inner();
@@ -462,20 +466,20 @@ impl<T, K: Key> Pile<T, K> {
     /// Returns an [`Iterator`] over the stored key-value pairs.
     pub fn iter(&self) -> Iter<T, K> {
         Iter {
-            pile: self,
+            stacko: self,
             chunk_idx: 0,
             value_idx: 0,
         }
     }
 
-    /// Grows the pile such that there is space for at least *additional* values.
+    /// Grows the [`Stacko`] such that there is space for at least *additional* values.
     #[cold]
     fn grow(&self, additional: usize) {
         let mut inner = self.inner.borrow_mut();
         let active = inner
             .chunks
             .last()
-            .expect("There should be at least one chunk in the Pile.");
+            .expect("There should be at least one chunk in the Stacko.");
         debug_assert!(
             active.storage.len() == active.storage.capacity(),
             "The active chunk is not full yet?"
@@ -513,7 +517,7 @@ impl<T, K: Key> Pile<T, K> {
     ///
     /// The caller must ensure that there are no other references to the value stored
     /// in the given *chunk* with the given *index*. The method `get_mut` ensures this
-    /// by taking an exclusive reference to the pile.
+    /// by taking an exclusive reference to the [`Stacko`].
     unsafe fn raw_get_mut(&self, chunk: usize, index: usize) -> Option<&mut T> {
         self.inner
             .borrow_mut()
@@ -532,16 +536,16 @@ impl<T, K: Key> Pile<T, K> {
     }
 }
 
-impl<T, K: Key> From<Pile<T, K>> for Vec<T> {
-    fn from(pile: Pile<T, K>) -> Self {
-        pile.into_vec()
+impl<T, K: Key> From<Stacko<T, K>> for Vec<T> {
+    fn from(stacko: Stacko<T, K>) -> Self {
+        stacko.into_vec()
     }
 }
 
-impl<T, K: Key> From<Vec<T>> for Pile<T, K> {
+impl<T, K: Key> From<Vec<T>> for Stacko<T, K> {
     fn from(chunk: Vec<T>) -> Self {
         Self {
-            inner: RefCell::new(PileInner {
+            inner: RefCell::new(StackoInner {
                 chunks: vec![Chunk {
                     start: 0,
                     storage: chunk,
@@ -552,13 +556,13 @@ impl<T, K: Key> From<Vec<T>> for Pile<T, K> {
     }
 }
 
-impl<T, K: Key> Default for Pile<T, K> {
+impl<T, K: Key> Default for Stacko<T, K> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'p, T, K: Key> IntoIterator for &'p Pile<T, K> {
+impl<'p, T, K: Key> IntoIterator for &'p Stacko<T, K> {
     type Item = (K, &'p T);
 
     type IntoIter = Iter<'p, T, K>;
@@ -568,7 +572,7 @@ impl<'p, T, K: Key> IntoIterator for &'p Pile<T, K> {
     }
 }
 
-impl<T, K: Key> IntoIterator for Pile<T, K> {
+impl<T, K: Key> IntoIterator for Stacko<T, K> {
     type Item = (K, T);
 
     type IntoIter = IntoIter<T, K>;
@@ -584,20 +588,20 @@ impl<T, K: Key> IntoIterator for Pile<T, K> {
     }
 }
 
-impl<T, K: Key> FromIterator<T> for Pile<T, K> {
+impl<T, K: Key> FromIterator<T> for Stacko<T, K> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let iter = iter.into_iter();
         let (lower_bound, upper_bound) = iter.size_hint();
         let capacity = upper_bound.unwrap_or(lower_bound);
-        let pile = Pile::with_capacity(capacity);
+        let stacko = Stacko::with_capacity(capacity);
         for value in iter {
-            pile.push(value);
+            stacko.push(value);
         }
-        pile
+        stacko
     }
 }
 
-impl<T, K: Key> std::ops::Index<K> for Pile<T, K> {
+impl<T, K: Key> std::ops::Index<K> for Stacko<T, K> {
     type Output = T;
 
     fn index(&self, key: K) -> &Self::Output {
@@ -606,7 +610,7 @@ impl<T, K: Key> std::ops::Index<K> for Pile<T, K> {
     }
 }
 
-impl<T, K: Key> std::ops::IndexMut<K> for Pile<T, K> {
+impl<T, K: Key> std::ops::IndexMut<K> for Stacko<T, K> {
     fn index_mut(&mut self, key: K) -> &mut Self::Output {
         self.get_mut(key)
             .expect("No value has been stored for the given key.")
@@ -614,7 +618,7 @@ impl<T, K: Key> std::ops::IndexMut<K> for Pile<T, K> {
 }
 
 #[cfg(feature = "serde")]
-impl<T: serde::Serialize, K: Key> serde::Serialize for Pile<T, K> {
+impl<T: serde::Serialize, K: Key> serde::Serialize for Stacko<T, K> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -629,7 +633,7 @@ impl<T: serde::Serialize, K: Key> serde::Serialize for Pile<T, K> {
 }
 
 #[cfg(feature = "serde")]
-impl<'de, T: serde::Deserialize<'de>, K: Key> serde::Deserialize<'de> for Pile<T, K> {
+impl<'de, T: serde::Deserialize<'de>, K: Key> serde::Deserialize<'de> for Stacko<T, K> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
@@ -638,7 +642,7 @@ impl<'de, T: serde::Deserialize<'de>, K: Key> serde::Deserialize<'de> for Pile<T
     }
 }
 
-/// An [`Iterator`] that moves key-value pairs out of a [`Pile`].
+/// An [`Iterator`] that moves key-value pairs out of a [`Stacko`].
 pub struct IntoIter<T, K: Key> {
     chunks: std::vec::IntoIter<Chunk<T>>,
     active: Option<std::vec::IntoIter<T>>,
@@ -673,9 +677,9 @@ impl<T, K: Key> Iterator for IntoIter<T, K> {
     }
 }
 
-/// An [`Iterator`] over key-value pairs in a [`Pile`].
+/// An [`Iterator`] over key-value pairs in a [`Stacko`].
 pub struct Iter<'p, T, K: Key> {
-    pile: &'p Pile<T, K>,
+    stacko: &'p Stacko<T, K>,
     chunk_idx: usize,
     value_idx: usize,
 }
@@ -685,11 +689,11 @@ impl<'p, T, K: Key> Iterator for Iter<'p, T, K> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let inner = self.pile.inner.borrow();
+            let inner = self.stacko.inner.borrow();
             if self.chunk_idx >= inner.chunks.len() {
                 break None;
             }
-            if let Some(value) = self.pile.raw_get(self.chunk_idx, self.value_idx) {
+            if let Some(value) = self.stacko.raw_get(self.chunk_idx, self.value_idx) {
                 let result = Some((
                     K::from(DefaultKey::new(self.chunk_idx, self.value_idx)),
                     value,
@@ -703,11 +707,11 @@ impl<'p, T, K: Key> Iterator for Iter<'p, T, K> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         // No upper bound because values can be inserted while iterating.
-        (self.pile.len(), None)
+        (self.stacko.len(), None)
     }
 
     fn count(self) -> usize {
-        self.pile.len() - self.value_idx
+        self.stacko.len() - self.value_idx
     }
 }
 
@@ -717,17 +721,17 @@ mod tests {
 
     #[test]
     pub fn test_many() {
-        let pile = Pile::<usize>::new();
+        let stacko = Stacko::<usize>::new();
         let values = (0..10_000)
-            .map(|value| pile.push(value))
+            .map(|value| stacko.push(value))
             .collect::<Vec<_>>();
         for (expected, (key, _)) in values.iter().enumerate() {
-            assert_eq!(pile[*key], expected)
+            assert_eq!(stacko[*key], expected)
         }
-        for (expected, (key, value_ref)) in pile.iter().enumerate() {
+        for (expected, (key, value_ref)) in stacko.iter().enumerate() {
             assert_eq!(key.index(), expected);
             assert_eq!(*value_ref, expected);
-            assert_eq!(pile[key], expected);
+            assert_eq!(stacko[key], expected);
         }
     }
 }
