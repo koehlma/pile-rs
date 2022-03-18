@@ -41,7 +41,7 @@ Here is a list of similar data structures and their differences:
 ## Serialization
 
 Using the `serde` feature flag, a `Stacko` and its keys can be serialized with
-[Serde][serde].
+[Serde][https://serde.rs/].
 
 A `Stacko` storing values of type `T` is serialized as a sequence of type `T`,
 just as a `Vec` of type `T` is, and keys are serialized as the corresponding
