@@ -1,6 +1,9 @@
-# Stacko    ![pipeline]
+# Stacko    [![Build Status]][actions] [![Latest Version]][crates.io]
 
-[pipeline]: https://img.shields.io/github/workflow/status/koehlma/stacko-rs/Pipeline/main?label=tests
+[Build Status]: https://img.shields.io/github/workflow/status/koehlma/stacko-rs/Pipeline/main?label=tests
+[actions]: https://github.com/koehlma/stacko-rs/actions
+[Latest Version]: https://img.shields.io/crates/v/stacko.svg
+[crates.io]: https://crates.io/crates/stacko
 
 
 `Stacko` is a **fast but limited ordered collection** for storing values of a single
