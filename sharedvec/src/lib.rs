@@ -329,9 +329,23 @@ impl<T, K: Key> SharedVec<T, K> {
 
     /// Pushes a *value* onto the [`SharedVec`] potentially allocating more memory.
     pub fn push(&self, value: T) -> (K, &T) {
-        self.try_push(value).unwrap_or_else(|value| {
+        self.push_with(|_| value)
+    }
+
+    /// Pushes a value produced by *func* onto the [`SharedVec`] potentially allocating
+    /// more memory.
+    ///
+    /// This method takes a function which is provided with the key where the value will
+    /// be stored and produces the value to be stored. It allows storing the key of a
+    /// value inside the value itself.
+    //
+    /// # Panics
+    ///
+    /// May panic if the provided function accesses the [`SharedVec`] in any way.
+    pub fn push_with<F: FnOnce(K) -> T>(&self, func: F) -> (K, &T) {
+        self.try_push_with(func).unwrap_or_else(|func| {
             self.grow(1);
-            match self.try_push(value) {
+            match self.try_push_with(func) {
                 Ok(result) => result,
                 Err(_) => {
                     unreachable!("There should be space because we just grew the `SharedVec`.")
@@ -347,6 +361,21 @@ impl<T, K: Key> SharedVec<T, K> {
     ///
     /// Fails in case no space is available in the [`SharedVec`].
     pub fn try_push(&self, value: T) -> Result<(K, &T), T> {
+        match self.try_push_with(|_| value) {
+            Ok(result) => Ok(result),
+            Err(func) => {
+                // The key does not matter because the function we provided totally
+                // ignores it. Hence, we pass in a dummy key in order to extract the
+                // original value provided by the caller.
+                Err(func(K::from(DefaultKey::new(0, 0))))
+            }
+        }
+    }
+
+    /// Same as [`push_with`][Self::push_with] but without allocating more memory.
+    ///
+    /// See [`push_with`][Self::push_with] and [`try_push`][Self::try_push].
+    pub fn try_push_with<F: FnOnce(K) -> T>(&self, func: F) -> Result<(K, &T), F> {
         let mut inner = self.inner.borrow_mut();
         let chunk_idx = inner.chunks.len() - 1;
         let active = inner
@@ -355,17 +384,18 @@ impl<T, K: Key> SharedVec<T, K> {
             .expect("There should be at least one chunk in the `SharedVec`.");
         let offset = active.storage.len();
         if offset < active.storage.capacity() {
-            active.storage.push(value);
+            let value_idx = active.start + offset;
+            let key = K::from(DefaultKey::new(chunk_idx, value_idx));
+            active.storage.push(func(key));
             debug_assert!(offset < active.storage.len());
             // SAFETY: This is safe because we just ensured that there is a value stored
             // at the given offset. It is also safe to create a reference into the storage
             // because `Vec` dereferences to stable addresses and no exclusive reference
             // to the same value can be obtained through a shared reference to the SharedVec.
             let reference = unsafe { &*active.storage.as_ptr().add(offset) };
-            let value_idx = active.start + offset;
-            Ok((K::from(DefaultKey::new(chunk_idx, value_idx)), reference))
+            Ok((key, reference))
         } else {
-            Err(value)
+            Err(func)
         }
     }
 
