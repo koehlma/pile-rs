@@ -1,6 +1,6 @@
 [package]
 name = "sharedvec"
-version = "0.1.2"
+version = "0.2.0"
 description = "A fast but limited collection for storing values of a single type."
 authors = ["Maximilian Köhl <mail@koehlma.de>"]
 edition = "2021"
