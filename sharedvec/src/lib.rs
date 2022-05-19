@@ -736,16 +736,25 @@ mod tests {
     #[test]
     pub fn test_many() {
         let sharedvec = SharedVec::<usize>::new();
-        let values = (0..10_000)
+        let values = (0..1_000)
             .map(|value| sharedvec.push(value))
             .collect::<Vec<_>>();
-        for (expected, (key, _)) in values.iter().enumerate() {
-            assert_eq!(sharedvec[*key], expected)
+        for (expected, (key, value)) in values.iter().enumerate() {
+            assert_eq!(sharedvec[*key], expected);
+            assert_eq!(**value, expected);
         }
         for (expected, (key, value_ref)) in sharedvec.iter().enumerate() {
             assert_eq!(key.index(), expected);
             assert_eq!(*value_ref, expected);
             assert_eq!(sharedvec[key], expected);
         }
+    }
+
+    #[test]
+    pub fn test_stable_reference() {
+        let sharedvec = SharedVec::<usize>::new();
+        let (_, value) = sharedvec.push(42);
+        sharedvec.push(0);
+        assert_eq!(*value, 42);
     }
 }
